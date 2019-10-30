@@ -117,14 +117,28 @@ func tcpRemote(addr string, shadow func(net.Conn) net.Conn) {
 				return
 			}
 
-			rc, err := net.Dial("tcp", tgt.String())
+			laddr, err := net.ResolveTCPAddr("tcp", c.LocalAddr().String())
+			if err != nil {
+				logf("failed resolve ip address: %v", err)
+				return
+			}
+			laddr.Port = 0
+
+			raddr, err := net.ResolveTCPAddr("tcp", tgt.String())
+			if err != nil {
+				logf("failed resolve ip address: %v", err)
+				return
+			}
+
+			rc, err := net.DialTCP("tcp", laddr, raddr)
 			if err != nil {
 				logf("failed to connect to target: %v", err)
 				return
 			}
 			defer rc.Close()
-			rc.(*net.TCPConn).SetKeepAlive(true)
-
+			rc.SetKeepAlive(true)
+			deadline := time.Now().Add(10 * time.Second)
+			rc.SetDeadline(deadline)
 			logf("proxy %s <-> %s", c.RemoteAddr(), tgt)
 			_, _, err = relay(c, rc)
 			if err != nil {
